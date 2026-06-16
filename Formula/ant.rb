@@ -4,6 +4,20 @@ class Ant < Formula
   version "0.12.2.1781569582"
   license "MIT"
 
+  head do
+    url "https://github.com/theMackabu/ant.git", branch: "master"
+
+    depends_on "cmake" => :build
+    depends_on "lld@20" => :build
+    depends_on "llvm@20" => :build
+    depends_on "meson" => :build
+    depends_on "ninja" => :build
+    depends_on "node@22" => :build
+    depends_on "pkgconf" => :build
+    depends_on "python@3.14" => :build
+    depends_on "zig@0.15" => :build
+  end
+
   on_macos do
     if Hardware::CPU.arm?
       url "https://github.com/theMackabu/ant/releases/download/v0.12.2.1781569582/ant-darwin-aarch64.zip"
@@ -25,6 +39,35 @@ class Ant < Formula
   end
 
   def install
+    if build.head?
+      lld = Formula["lld@20"]
+      llvm = Formula["llvm@20"]
+      node = Formula["node@22"]
+      python = Formula["python@3.14"]
+      zig = Formula["zig@0.15"]
+
+      ENV.prepend_path "PATH", lld.opt_bin.to_s
+      ENV.prepend_path "PATH", llvm.opt_bin.to_s
+      ENV.prepend_path "PATH", node.opt_bin.to_s
+      ENV.prepend_path "PATH", python.opt_bin.to_s
+      ENV.prepend_path "PATH", zig.opt_bin.to_s
+      ENV["CC"] = (llvm.opt_bin/"clang").to_s
+      ENV["CXX"] = (llvm.opt_bin/"clang++").to_s
+      ENV["AR"] = (llvm.opt_bin/"llvm-ar").to_s
+      ENV["RANLIB"] = (llvm.opt_bin/"llvm-ranlib").to_s
+      ENV.append "LDFLAGS", "-fuse-ld=lld"
+
+      # Upstream HEAD references this generated, gitignored include directory
+      # from a non-default example target during Meson setup.
+      mkdir_p "packages/libant/dist"
+
+      meson_args = std_meson_args.reject { |arg| arg.start_with?("--wrap-mode=") }
+      system "meson", "setup", "build", *meson_args, "--wrap-mode=default", "-Dcodesign=false"
+      system "meson", "compile", "-C", "build"
+      bin.install "build/ant"
+      return
+    end
+
     bin.install "ant"
   end
 
